@@ -134,6 +134,20 @@ import kotlin.random.Random
 
 val WaterBlue = Color(0x0FF38B0F2) // Shared WaterBlue theme accent color
 
+data class SettingsRowData(
+    val title: String,
+    val subtitle: String,
+    val icon: ImageVector,
+    val iconBgColor: Color,
+    val action: () -> Unit
+)
+
+data class SettingsCategoryData(
+    val title: String,
+    val tabId: Int, // 1: System & AI, 2: Productivity, 3: Logs & Finance, 4: Security, 5: Account
+    val items: List<SettingsRowData>
+)
+
 @Composable
 fun SettingsPageScope(content: @Composable () -> Unit) {
     Box(modifier = Modifier.fillMaxSize()) {
@@ -169,293 +183,318 @@ fun SettingsView(viewModel: AppViewModel, modifier: Modifier = Modifier) {
     }
     val isAdminUser by viewModel.isAdmin.collectAsState()
 
+    var selectedTab by remember { mutableStateOf(0) }
+    var searchQuery by remember { mutableStateOf("") }
+
+    val allCategories = remember {
+        listOf(
+            SettingsCategoryData(
+                title = "Core Systems & AI",
+                tabId = 1,
+                items = listOf(
+                    SettingsRowData("1. GENERAL SYSTEM", "Tab alignment, navigation bar reordering, style configurations", Icons.Default.Settings, Color(0xFF2196F3)) { activePage = 1 },
+                    SettingsRowData("DIAGNOSTICS & BACKGROUND", "Fix stopwatch lockscreen freeze & background recording on Samsung/Oppo/Lenovo/Moto", Icons.Default.Info, Color(0xFFE53935)) { activePage = 17 },
+                    SettingsRowData("SYSTEM UPDATE CENTER", "Check for updates, manage background downloads, authenticate tester", Icons.Default.Refresh, Color(0xFF4CAF50)) { activePage = 16 },
+                    SettingsRowData("2. DEEPA AI BRAIN", "Offline model caching, memories vault management", Icons.Default.Face, Color(0xFF00E5FF)) { activePage = 11 },
+                    SettingsRowData("3. BACKUP & RESTORE", "JSON manual database import & security exports", Icons.Default.Refresh, Color(0xFFFFB300)) { activePage = 12 }
+                )
+            ),
+            SettingsCategoryData(
+                title = "Productivity Core",
+                tabId = 2,
+                items = listOf(
+                    SettingsRowData("4. TIMER CONFIGURATION", "Session periods, default break times, vibration style toggles", Icons.Default.PlayArrow, Color(0xFFFF3D00)) { activePage = 2 },
+                    SettingsRowData("STUDY GROUPS (FOCUS LOCKER)", "Multiplayer study groups. Form peer circles to study together offline-first", Icons.Default.Group, Color(0xFFFF3D00)) { viewModel.navigateTo(Screen.FOCUS_LOCKER) },
+                    SettingsRowData("5. TASKS ENGINE", "Reminder frequencies, custom vibrators, default lists", Icons.Default.List, Color(0xFF4CAF50)) { activePage = 3 },
+                    SettingsRowData("6. CALENDAR PLANNER", "Style layouts, display settings, timeline filters", Icons.Default.DateRange, Color(0xFF9C27B0)) { activePage = 4 },
+                    SettingsRowData("7. HABITS TRACKER", "Streak calculations, automatic midnight reset triggers", Icons.Default.Refresh, Color(0xFFFF8F00)) { activePage = 5 },
+                    SettingsRowData("8. SLEEP & WAKE-UP ALARM", "Bedtime reminders, wake-up alarms, snooze & alarm states", Icons.Default.Star, Color(0xFF3F51B5)) { activePage = 21 }
+                )
+            ),
+            SettingsCategoryData(
+                title = "Logs & Utilities",
+                tabId = 3,
+                items = listOf(
+                    SettingsRowData("8. COUNTDOWNS & ALERTS", "Background notifications, custom alert parameters", Icons.Default.Notifications, Color(0xFF00E676)) { activePage = 6 },
+                    SettingsRowData("9. LIFE JOURNAL", "Storage usage indexers, backup matching constraints", Icons.Default.Book, Color(0xFFE91E63)) { activePage = 7 },
+                    SettingsRowData("10. CONTACTS DIRECTORY", "Full syncing filters, categories pairing, anniversaries", Icons.Default.AccountBox, Color(0xFF03A9F4)) { activePage = 8 }
+                )
+            ),
+            SettingsCategoryData(
+                title = "File & Financials",
+                tabId = 3,
+                items = listOf(
+                    SettingsRowData("11. FILE EXPLORER", "Workspace directories, index preferred storage", Icons.Default.Folder, Color(0xFF8D6E63)) { activePage = 9 },
+                    SettingsRowData("12. FINANCIAL LEDGER", "Accounts, custom family members, categories reporting", Icons.Default.MonetizationOn, Color(0xFF4CAF50)) { activePage = 10 }
+                )
+            ),
+            SettingsCategoryData(
+                title = "Security & Privacy Settings",
+                tabId = 4,
+                items = listOf(
+                    SettingsRowData("13. SECURE APP LOCK", "Verify code settings, PIN setups, recover questions", Icons.Default.Lock, Color(0xFFE91E63)) { activePage = 13 },
+                    SettingsRowData("14. BLOCKS & SCREEN LIMITS", "Establish application constraints, usage warnings", Icons.Default.Block, Color(0xFFD32F2F)) { activePage = 14 },
+                    SettingsRowData("15. PERMISSIONS & API CONNECTIONS", "Manage system permissions and Google Drive", Icons.Default.CheckCircle, Color(0xFF4CAF50)) { activePage = 19 },
+                    SettingsRowData("16. FOCUS LOCKER", "Synchronized study rooms and lobbies", Icons.Default.Lock, Color(0xFFFF3D00)) { activePage = 23 }
+                )
+            ),
+            SettingsCategoryData(
+                title = "Account & Sync",
+                tabId = 5,
+                items = listOf(
+                    SettingsRowData("16. USER INFO", "Edit your profile details, nickname, and profile picture", Icons.Default.Person, Color(0xFF673AB7)) { activePage = 15 },
+                    SettingsRowData("17. DEEP LINKS & SHORTCUTS", "Copy application deep links, automation URI routes & assets", Icons.Default.Share, Color(0xFF03A9F4)) { activePage = 18 },
+                    SettingsRowData("18. GOOGLE FIT SYNC", "Synchronize activity data directly with your Google Fit account", Icons.Default.DirectionsWalk, Color(0xFFFFA726)) { activePage = 20 },
+                    SettingsRowData("19. RECOMPOSE FIREBASE", "Clean database, delete non-Google registered user nodes, and verify structure", Icons.Default.Refresh, Color(0xFF00796B)) { activePage = 22 },
+                    SettingsRowData("LOGOUT", "Sign out from the current online account securely", Icons.Default.ExitToApp, Color(0xFFD32F2F)) { viewModel.logout() },
+                    SettingsRowData("UNINSTALL & DE-REGISTER", "Securely wipe local data, notify peers on Firebase, and uninstall app", Icons.Default.Delete, Color(0xFFD32F2F)) { showUninstallConfirm = true }
+                )
+            )
+        )
+    }
+
+    // Dynamic filtering
+    val filteredCategories = remember(selectedTab, searchQuery) {
+        allCategories.mapNotNull { category ->
+            // Filter categories by tab first (only if searchQuery is empty)
+            if (searchQuery.isEmpty() && selectedTab != 0 && category.tabId != selectedTab) {
+                null
+            } else {
+                // Filter items by searchQuery
+                val matchedItems = if (searchQuery.isEmpty()) {
+                    category.items
+                } else {
+                    category.items.filter { item ->
+                        item.title.contains(searchQuery, ignoreCase = true) ||
+                        item.subtitle.contains(searchQuery, ignoreCase = true)
+                    }
+                }
+                if (matchedItems.isNotEmpty()) {
+                    category.copy(items = matchedItems)
+                } else {
+                    null
+                }
+            }
+        }
+    }
+
     when (activePage) {
         0 -> {
-            LazyColumn(
+            Column(
                 modifier = modifier
                     .fillMaxSize()
                     .background(Color.Black)
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
             ) {
-                // Centered Welcome Header
-                item {
-                    Card(
+                // Centered Welcome Header Card
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF09090C)),
+                    shape = RoundedCornerShape(20.dp),
+                    border = BorderStroke(1.dp, WaterBlue.copy(alpha = 0.2f))
+                ) {
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 8.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFF09090C)),
-                        shape = RoundedCornerShape(20.dp),
-                        border = BorderStroke(1.dp, WaterBlue.copy(alpha = 0.2f))
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(
-                                    Brush.linearGradient(
-                                        colors = listOf(WaterBlue.copy(alpha = 0.12f), Color.Transparent)
-                                    )
+                            .background(
+                                Brush.linearGradient(
+                                    colors = listOf(WaterBlue.copy(alpha = 0.12f), Color.Transparent)
                                 )
-                                .padding(18.dp)
+                            )
+                            .padding(16.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
+                            Box(
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .clip(CircleShape)
+                                    .background(WaterBlue.copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(44.dp)
-                                        .clip(CircleShape)
-                                        .background(WaterBlue.copy(alpha = 0.15f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Settings,
-                                        contentDescription = "Settings Icon",
-                                        tint = WaterBlue,
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(14.dp))
-                                Column {
-                                    Text(
-                                        text = "SETTINGS CENTER",
-                                        fontSize = 16.sp,
-                                        fontWeight = FontWeight.Black,
-                                        color = Color.White,
-                                        letterSpacing = 0.8.sp
-                                    )
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    Text(
-                                        text = "Configure and personalize your localized Life OS experience.",
-                                        fontSize = 11.sp,
-                                        color = Color.Gray,
-                                        lineHeight = 14.sp
-                                    )
-                                }
+                                Icon(
+                                    imageVector = Icons.Default.Settings,
+                                    contentDescription = "Settings Icon",
+                                    tint = WaterBlue,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(14.dp))
+                            Column {
+                                Text(
+                                    text = "SETTINGS CENTER",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = Color.White,
+                                    letterSpacing = 0.8.sp
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "Configure and personalize your localized Life OS experience.",
+                                    fontSize = 11.sp,
+                                    color = Color.Gray,
+                                    lineHeight = 14.sp
+                                )
                             }
                         }
                     }
                 }
 
-                // Group 1: Core Systems & AI
-                item {
-                    SettingsCategoryGroup(title = "Core Systems & AI") {
-                        SettingsRowItem(
-                            title = "1. GENERAL SYSTEM",
-                            subtitle = "Tab alignment, navigation bar reordering, style configurations",
-                            icon = Icons.Default.Settings,
-                            iconBgColor = Color(0xFF2196F3)
-                        ) { activePage = 1 }
-                        HorizontalDivider(color = Color(0xFF1E1E22), thickness = 0.5.dp, modifier = Modifier.padding(start = 56.dp, end = 16.dp))
-                        SettingsRowItem(
-                            title = "DIAGNOSTICS & BACKGROUND",
-                            subtitle = "Fix stopwatch lockscreen freeze & background recording on Samsung/Oppo/Lenovo/Moto",
-                            icon = Icons.Default.Info,
-                            iconBgColor = Color(0xFFE53935)
-                        ) { activePage = 17 }
-                        HorizontalDivider(color = Color(0xFF1E1E22), thickness = 0.5.dp, modifier = Modifier.padding(start = 56.dp, end = 16.dp))
-                        SettingsRowItem(
-                            title = "SYSTEM UPDATE CENTER",
-                            subtitle = "Check for updates, manage background downloads, authenticate tester",
-                            icon = Icons.Default.Refresh,
-                            iconBgColor = Color(0xFF4CAF50)
-                        ) { activePage = 16 }
-                        HorizontalDivider(color = Color(0xFF1E1E22), thickness = 0.5.dp, modifier = Modifier.padding(start = 56.dp, end = 16.dp))
-                        SettingsRowItem(
-                            title = "2. DEEPA AI BRAIN",
-                            subtitle = "Offline model caching, memories vault management",
-                            icon = Icons.Default.Face,
-                            iconBgColor = Color(0xFF00E5FF)
-                        ) { activePage = 11 }
-                        HorizontalDivider(color = Color(0xFF1E1E22), thickness = 0.5.dp, modifier = Modifier.padding(start = 56.dp, end = 16.dp))
-                        SettingsRowItem(
-                            title = "3. BACKUP & RESTORE",
-                            subtitle = "JSON manual database import & security exports",
-                            icon = Icons.Default.Refresh,
-                            iconBgColor = Color(0xFFFFB300)
-                        ) { activePage = 12 }
-                    }
-                }
-
-                // Group 2: Productivity Suite
-                item {
-                    SettingsCategoryGroup(title = "Productivity Core") {
-                        SettingsRowItem(
-                            title = "4. TIMER CONFIGURATION",
-                            subtitle = "Session periods, default break times, vibration style toggles",
-                            icon = Icons.Default.PlayArrow,
-                            iconBgColor = Color(0xFFFF3D00)
-                        ) { activePage = 2 }
-                        HorizontalDivider(color = Color(0xFF1E1E22), thickness = 0.5.dp, modifier = Modifier.padding(start = 56.dp, end = 16.dp))
-                        SettingsRowItem(
-                            title = "STUDY GROUPS (FOCUS LOCKER)",
-                            subtitle = "Multiplayer study groups. Form peer circles to study together offline-first",
-                            icon = Icons.Default.Group,
-                            iconBgColor = Color(0xFFFF3D00)
-                        ) {
-                            viewModel.navigateTo(Screen.FOCUS_LOCKER)
+                // Modern Search Field
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    placeholder = { Text("Search settings...", color = Color.Gray, fontSize = 13.sp) },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = "Search",
+                            tint = Color.Gray,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    },
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { searchQuery = "" }) {
+                                Icon(
+                                    imageVector = Icons.Default.Clear,
+                                    contentDescription = "Clear",
+                                    tint = Color.Gray,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
                         }
-                        HorizontalDivider(color = Color(0xFF1E1E22), thickness = 0.5.dp, modifier = Modifier.padding(start = 56.dp, end = 16.dp))
-                        SettingsRowItem(
-                            title = "5. TASKS ENGINE",
-                            subtitle = "Reminder frequencies, custom vibrators, default lists",
-                            icon = Icons.Default.List,
-                            iconBgColor = Color(0xFF4CAF50)
-                        ) { activePage = 3 }
-                        HorizontalDivider(color = Color(0xFF1E1E22), thickness = 0.5.dp, modifier = Modifier.padding(start = 56.dp, end = 16.dp))
-                        SettingsRowItem(
-                            title = "6. CALENDAR PLANNER",
-                            subtitle = "Style layouts, display settings, timeline filters",
-                            icon = Icons.Default.DateRange,
-                            iconBgColor = Color(0xFF9C27B0)
-                        ) { activePage = 4 }
-                        HorizontalDivider(color = Color(0xFF1E1E22), thickness = 0.5.dp, modifier = Modifier.padding(start = 56.dp, end = 16.dp))
-                        SettingsRowItem(
-                            title = "7. HABITS TRACKER",
-                            subtitle = "Streak calculations, automatic midnight reset triggers",
-                            icon = Icons.Default.Refresh,
-                            iconBgColor = Color(0xFFFF8F00)
-                        ) { activePage = 5 }
-                        HorizontalDivider(color = Color(0xFF1E1E22), thickness = 0.5.dp, modifier = Modifier.padding(start = 56.dp, end = 16.dp))
-                        SettingsRowItem(
-                            title = "8. SLEEP & WAKE-UP ALARM",
-                            subtitle = "Bedtime reminders, wake-up alarms, snooze & alarm states",
-                            icon = Icons.Default.Star,
-                            iconBgColor = Color(0xFF3F51B5)
-                        ) { activePage = 21 }
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(24.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = WaterBlue,
+                        unfocusedBorderColor = Color(0xFF1E1E22),
+                        focusedContainerColor = Color(0xFF09090C),
+                        unfocusedContainerColor = Color(0xFF09090C),
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White
+                    ),
+                    textStyle = TextStyle(fontSize = 14.sp)
+                )
+
+                // Quick Category Pills
+                if (searchQuery.isEmpty()) {
+                    androidx.compose.foundation.lazy.LazyRow(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        val tabs = listOf("All", "System & AI", "Productivity", "Logs & Finance", "Security", "Account")
+                        items(tabs.size) { index ->
+                            val isSelected = selectedTab == index
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(if (isSelected) WaterBlue else Color(0xFF0C0C0E))
+                                    .border(1.dp, if (isSelected) WaterBlue else Color(0xFF1E1E22), RoundedCornerShape(16.dp))
+                                    .clickable { selectedTab = index }
+                                    .padding(horizontal = 14.dp, vertical = 7.dp)
+                            ) {
+                                Text(
+                                    text = tabs[index],
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isSelected) Color.Black else Color.LightGray
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    // Active search indicators
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 12.dp, start = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Search Results for \"$searchQuery\"",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = WaterBlue,
+                            letterSpacing = 0.5.sp
+                        )
                     }
                 }
 
-                // Group 3: Metrics & Journal Logs
-                item {
-                    SettingsCategoryGroup(title = "Logs & Utilities") {
-                        SettingsRowItem(
-                            title = "8. COUNTDOWNS & ALERTS",
-                            subtitle = "Background notifications, custom alert parameters",
-                            icon = Icons.Default.Notifications,
-                            iconBgColor = Color(0xFF00E676)
-                        ) { activePage = 6 }
-                        HorizontalDivider(color = Color(0xFF1E1E22), thickness = 0.5.dp, modifier = Modifier.padding(start = 56.dp, end = 16.dp))
-                        SettingsRowItem(
-                            title = "9. LIFE JOURNAL",
-                            subtitle = "Storage usage indexers, backup matching constraints",
-                            icon = Icons.Default.Book,
-                            iconBgColor = Color(0xFFE91E63)
-                        ) { activePage = 7 }
-                        HorizontalDivider(color = Color(0xFF1E1E22), thickness = 0.5.dp, modifier = Modifier.padding(start = 56.dp, end = 16.dp))
-                        SettingsRowItem(
-                            title = "10. CONTACTS DIRECTORY",
-                            subtitle = "Full syncing filters, categories pairing, anniversaries",
-                            icon = Icons.Default.AccountBox,
-                            iconBgColor = Color(0xFF03A9F4)
-                        ) { activePage = 8 }
+                // LazyColumn for dynamic settings categories
+                LazyColumn(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    if (filteredCategories.isEmpty()) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 40.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(
+                                        imageVector = Icons.Default.Search,
+                                        contentDescription = "No Results",
+                                        tint = Color.DarkGray,
+                                        modifier = Modifier.size(48.dp)
+                                    )
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Text(
+                                        text = "No settings matched \"$searchQuery\"",
+                                        color = Color.Gray,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = "Check the spelling or try another query",
+                                        color = Color.DarkGray,
+                                        fontSize = 10.5.sp
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        filteredCategories.forEach { category ->
+                            item {
+                                SettingsCategoryGroup(title = category.title) {
+                                    category.items.forEachIndexed { idx, item ->
+                                        SettingsRowItem(
+                                            title = item.title,
+                                            subtitle = item.subtitle,
+                                            icon = item.icon,
+                                            iconBgColor = item.iconBgColor,
+                                            onClick = item.action
+                                        )
+                                        if (idx < category.items.size - 1) {
+                                            HorizontalDivider(
+                                                color = Color(0xFF1E1E22),
+                                                thickness = 0.5.dp,
+                                                modifier = Modifier.padding(start = 56.dp, end = 16.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
-                }
 
-                // Group 4: Sandbox & Wealth
-                item {
-                    SettingsCategoryGroup(title = "File & Financials") {
-                        SettingsRowItem(
-                            title = "11. FILE EXPLORER",
-                            subtitle = "Workspace directories, index preferred storage",
-                            icon = Icons.Default.Folder,
-                            iconBgColor = Color(0xFF8D6E63)
-                        ) { activePage = 9 }
-                        HorizontalDivider(color = Color(0xFF1E1E22), thickness = 0.5.dp, modifier = Modifier.padding(start = 56.dp, end = 16.dp))
-                        SettingsRowItem(
-                            title = "12. FINANCIAL LEDGER",
-                            subtitle = "Accounts, custom family members, categories reporting",
-                            icon = Icons.Default.MonetizationOn,
-                            iconBgColor = Color(0xFF4CAF50)
-                        ) { activePage = 10 }
+                    item {
+                        Spacer(modifier = Modifier.height(24.dp))
                     }
-                }
-
-                // Group 5: Deep Security
-                item {
-                    SettingsCategoryGroup(title = "Security & Privacy Settings") {
-                        SettingsRowItem(
-                            title = "13. SECURE APP LOCK",
-                            subtitle = "Verify code settings, PIN setups, recover questions",
-                            icon = Icons.Default.Lock,
-                            iconBgColor = Color(0xFFE91E63)
-                        ) { activePage = 13 }
-                        HorizontalDivider(color = Color(0xFF1E1E22), thickness = 0.5.dp, modifier = Modifier.padding(start = 56.dp, end = 16.dp))
-                        SettingsRowItem(
-                            title = "14. BLOCKS & SCREEN LIMITS",
-                            subtitle = "Establish application constraints, usage warnings",
-                            icon = Icons.Default.Block,
-                            iconBgColor = Color(0xFFD32F2F)
-                        ) { activePage = 14 }
-                        HorizontalDivider(color = Color(0xFF1E1E22), thickness = 0.5.dp, modifier = Modifier.padding(start = 56.dp, end = 16.dp))
-                        SettingsRowItem(
-                            title = "15. PERMISSIONS & API CONNECTIONS",
-                            subtitle = "Manage system permissions and Google Drive",
-                            icon = Icons.Default.CheckCircle,
-                            iconBgColor = Color(0xFF4CAF50)
-                        ) { activePage = 19 }
-                        HorizontalDivider(color = Color(0xFF1E1E22), thickness = 0.5.dp, modifier = Modifier.padding(start = 56.dp, end = 16.dp))
-                        SettingsRowItem(
-                            title = "16. FOCUS LOCKER",
-                            subtitle = "Synchronized study rooms and lobbies",
-                            icon = Icons.Default.Lock,
-                            iconBgColor = Color(0xFFFF3D00)
-                        ) { activePage = 23 }
-                    }
-                }
-
-                // Group 6: Account
-                item {
-                    SettingsCategoryGroup(title = "Account & Sync") {
-                        SettingsRowItem(
-                            title = "16. USER INFO",
-                            subtitle = "Edit your profile details, nickname, and profile picture",
-                            icon = Icons.Default.Person,
-                            iconBgColor = Color(0xFF673AB7)
-                        ) { activePage = 15 }
-                        HorizontalDivider(color = Color(0xFF1E1E22), thickness = 0.5.dp, modifier = Modifier.padding(start = 56.dp, end = 16.dp))
-                        SettingsRowItem(
-                            title = "17. DEEP LINKS & SHORTCUTS",
-                            subtitle = "Copy application deep links, automation URI routes & assets",
-                            icon = Icons.Default.Share,
-                            iconBgColor = Color(0xFF03A9F4)
-                        ) { activePage = 18 }
-                        HorizontalDivider(color = Color(0xFF1E1E22), thickness = 0.5.dp, modifier = Modifier.padding(start = 56.dp, end = 16.dp))
-                        SettingsRowItem(
-                            title = "18. GOOGLE FIT SYNC",
-                            subtitle = "Synchronize activity data directly with your Google Fit account",
-                            icon = Icons.Default.DirectionsWalk,
-                            iconBgColor = Color(0xFFFFA726)
-                        ) { activePage = 20 }
-                        HorizontalDivider(color = Color(0xFF1E1E22), thickness = 0.5.dp, modifier = Modifier.padding(start = 56.dp, end = 16.dp))
-                        SettingsRowItem(
-                            title = "19. RECOMPOSE FIREBASE",
-                            subtitle = "Clean database, delete non-Google registered user nodes, and verify structure",
-                            icon = Icons.Default.Refresh,
-                            iconBgColor = Color(0xFF00796B)
-                        ) { activePage = 22 }
-                        HorizontalDivider(color = Color(0xFF1E1E22), thickness = 0.5.dp, modifier = Modifier.padding(start = 56.dp, end = 16.dp))
-                        SettingsRowItem(
-                            title = "LOGOUT",
-                            subtitle = "Sign out from the current online account securely",
-                            icon = Icons.Default.ExitToApp,
-                            iconBgColor = Color(0xFFD32F2F)
-                        ) { viewModel.logout() }
-                        HorizontalDivider(color = Color(0xFF1E1E22), thickness = 0.5.dp, modifier = Modifier.padding(start = 56.dp, end = 16.dp))
-                        SettingsRowItem(
-                            title = "UNINSTALL & DE-REGISTER",
-                            subtitle = "Securely wipe local data, notify peers on Firebase, and uninstall app",
-                            icon = Icons.Default.Delete,
-                            iconBgColor = Color(0xFFD32F2F)
-                        ) { showUninstallConfirm = true }
-                    }
-                }
-                
-
-
-                item {
-                    Spacer(modifier = Modifier.height(24.dp))
                 }
             }
         }

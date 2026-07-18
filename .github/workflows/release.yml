@@ -259,6 +259,10 @@ jobs:
         OWNER=$(echo "$REPO_NAME" | cut -d'/' -f1)
         REPO=$(echo "$REPO_NAME" | cut -d'/' -f2)
         
+        # Calculate MD5 checksum of the newly built app-release.apk for Delta Patch validation
+        APK_MD5=$(md5sum app/build/outputs/apk/release/app-release.apk | cut -d' ' -f1)
+        echo "Calculated target APK MD5 for validation: $APK_MD5"
+        
         # Check if service account is available to obtain an OAuth2 access token
         AUTH_HEADER=""
         if [ -n "$FIREBASE_SERVICE_ACCOUNT" ]; then
@@ -272,11 +276,11 @@ jobs:
           echo "INFO: FIREBASE_CREDENTIALS secret is not set, attempting unauthenticated write..."
         fi
         
-        # Update update_config.json
+        # Update UPDATE_CONFIG.json
         if [ -n "$AUTH_HEADER" ]; then
           curl -X PUT -H "Content-Type: application/json" -H "$AUTH_HEADER" \
-            -d "{\"versionId\": $VERSION_CODE, \"apkFileId\": \"$APK_URL\", \"githubOwner\": \"$OWNER\", \"githubRepo\": \"$REPO\"}" \
-            "https://lifeosca.asia-southeast1.firebasedatabase.app/update_config.json"
+            -d "{\"Version_no\": $VERSION_CODE, \"Full_Apk_Url\": \"$APK_URL\", \"Patch_File_Url\": \"https://github.com/${REPO_NAME}/releases/download/v1.0.$VERSION_CODE/patch.bsdiff\", \"Patch_MD5\": \"$APK_MD5\", \"Is_Force_Update\": false}" \
+            "https://lifeosca.asia-southeast1.firebasedatabase.app/UPDATE_CONFIG.json"
             
           # Update versionId.json
           curl -X PUT -H "Content-Type: application/json" -H "$AUTH_HEADER" \
@@ -284,8 +288,8 @@ jobs:
             "https://lifeosca.asia-southeast1.firebasedatabase.app/versionId.json"
         else
           curl -X PUT -H "Content-Type: application/json" \
-            -d "{\"versionId\": $VERSION_CODE, \"apkFileId\": \"$APK_URL\", \"githubOwner\": \"$OWNER\", \"githubRepo\": \"$REPO\"}" \
-            "https://lifeosca.asia-southeast1.firebasedatabase.app/update_config.json"
+            -d "{\"Version_no\": $VERSION_CODE, \"Full_Apk_Url\": \"$APK_URL\", \"Patch_File_Url\": \"https://github.com/${REPO_NAME}/releases/download/v1.0.$VERSION_CODE/patch.bsdiff\", \"Patch_MD5\": \"$APK_MD5\", \"Is_Force_Update\": false}" \
+            "https://lifeosca.asia-southeast1.firebasedatabase.app/UPDATE_CONFIG.json"
             
           # Update versionId.json
           curl -X PUT -H "Content-Type: application/json" \

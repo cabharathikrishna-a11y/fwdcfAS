@@ -1,6 +1,6 @@
 {
   "rules": {
-    "update_config": {
+    "UPDATE_CONFIG": {
       ".read": "true",
       ".write": "true"
     },

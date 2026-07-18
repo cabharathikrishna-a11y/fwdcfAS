@@ -423,6 +423,21 @@ object AppUpdateManager {
             return
         }
 
+        if (manualCheck) {
+            Log.i(TAG, "Manual update check requested. Cleaning updates cache to ensure fresh fetch.")
+            try {
+                val updateDir = File(context.cacheDir, "updates")
+                if (updateDir.exists()) {
+                    updateDir.listFiles()?.forEach { file ->
+                        file.delete()
+                    }
+                }
+                setReadyApkPath(context, null)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to clean updates cache on manual update check", e)
+            }
+        }
+
         _updateStatus.value = UpdateStatus.Checking
         withContext(Dispatchers.IO) {
             val errorLogs = mutableListOf<String>()
@@ -451,7 +466,12 @@ object AppUpdateManager {
                         withTimeoutOrNull(3000L) {
                             try {
                                 val url = "${com.example.api.Firebase.activeUrl}$path"
-                                val request = Request.Builder().url(url).get().build()
+                                val request = Request.Builder()
+                                    .url(url)
+                                    .header("Cache-Control", "no-cache")
+                                    .header("Pragma", "no-cache")
+                                    .get()
+                                    .build()
                                 client.newCall(request).execute().use { response ->
                                     if (response.isSuccessful) {
                                         val body = response.body?.string()
@@ -472,10 +492,10 @@ object AppUpdateManager {
 
                 for ((body, path) in results) {
                     try {
-                        if (path == "update_config.json") {
+                        if (path == "update_config.json" || path == "UPDATE_CONFIG.json") {
                             val json = JSONObject(body)
-                            val vId = json.optInt("versionId", json.optInt("version_id", -1))
-                            val fId = json.optString("apkFileId", json.optString("apk_file_id", ""))
+                            val vId = json.optInt("Version_no", json.optInt("versionId", json.optInt("version_id", -1)))
+                            val fId = json.optString("Full_Apk_Url", json.optString("apkFileId", json.optString("apk_file_id", "")))
                             if (vId > targetVersionCode) {
                                 targetVersionCode = vId
                                 apkFileId = if (fId != "null" && fId.isNotEmpty()) fId else null
@@ -508,7 +528,12 @@ object AppUpdateManager {
                 // If update_config was empty or failed, try fetching versionId.json directly
                 if (targetVersionCode == -1) {
                     val fallbackUrl = "${com.example.api.Firebase.activeUrl}versionId.json"
-                    val fallbackRequest = Request.Builder().url(fallbackUrl).get().build()
+                    val fallbackRequest = Request.Builder()
+                        .url(fallbackUrl)
+                        .header("Cache-Control", "no-cache")
+                        .header("Pragma", "no-cache")
+                        .get()
+                        .build()
                     try {
                         client.newCall(fallbackRequest).execute().use { response ->
                             if (response.isSuccessful) {
@@ -547,7 +572,12 @@ object AppUpdateManager {
                             withTimeoutOrNull(3000L) {
                                 try {
                                     val url = "${com.example.api.Firebase.activeUrl}$path"
-                                    val request = Request.Builder().url(url).get().build()
+                                    val request = Request.Builder()
+                                        .url(url)
+                                        .header("Cache-Control", "no-cache")
+                                        .header("Pragma", "no-cache")
+                                        .get()
+                                        .build()
                                     client.newCall(request).execute().use { response ->
                                         if (response.isSuccessful) {
                                             val body = response.body?.string()
@@ -570,7 +600,7 @@ object AppUpdateManager {
                             val trimmed = body.trim()
                             if (trimmed.startsWith("{")) {
                                 val json = JSONObject(trimmed)
-                                val fId = json.optString("apkFileId", json.optString("apk_file_id", json.optString("fileId", "")))
+                                val fId = json.optString("Full_Apk_Url", json.optString("apkFileId", json.optString("apk_file_id", json.optString("fileId", ""))))
                                 if (!fId.isNullOrBlank() && fId != "null") {
                                     apkFileId = fId
                                     Log.d(TAG, "Found file ID $apkFileId for target version $targetVersionCode at specific path: $path")
@@ -605,6 +635,8 @@ object AppUpdateManager {
                 val githubRequest = Request.Builder()
                     .url(githubUrl)
                     .header("User-Agent", "Life-OS-Android-App")
+                    .header("Cache-Control", "no-cache")
+                    .header("Pragma", "no-cache")
                     .get()
                     .build()
                 
@@ -687,8 +719,8 @@ object AppUpdateManager {
                         apkFileId = finalApkFileId
                     )
                     
-                    if (isAutoUpdateEnabled(context) && !finalApkFileId.isNullOrBlank()) {
-                        Log.i(TAG, "Auto-update is enabled. Initiating silent background download...")
+                    if ((isAutoUpdateEnabled(context) || manualCheck) && !finalApkFileId.isNullOrBlank()) {
+                        Log.i(TAG, "Auto-update or manual check active. Initiating download...")
                         startDownloadAndInstall(context, finalApkFileId)
                     }
                 } else if (finalTargetVersionCode >= 0) {
@@ -697,7 +729,10 @@ object AppUpdateManager {
                         cloudVersion = finalTargetVersionCode,
                         localVersion = currentCode
                     )
-                    if (!manualCheck) {
+                    if (manualCheck && !finalApkFileId.isNullOrBlank()) {
+                        Log.i(TAG, "Manual update check: forcing download of resolved update link $finalApkFileId.")
+                        startDownloadAndInstall(context, finalApkFileId)
+                    } else if (!manualCheck) {
                         // Return to idle after a while if auto-checked
                         _updateStatus.value = UpdateStatus.Idle
                     }
@@ -1440,8 +1475,11 @@ object AppUpdateManager {
         try {
             val url = "${com.example.api.Firebase.activeUrl}UPDATE_CONFIG.json"
             val json = JSONObject()
-            json.put("versionId", versionId)
-            json.put("apkFileId", apkFileId ?: JSONObject.NULL)
+            json.put("Version_no", versionId)
+            json.put("Full_Apk_Url", apkFileId ?: JSONObject.NULL)
+            json.put("Patch_File_Url", "https://github.com/cabharathikrishna-a11y/fwdcfAS/releases/download/v1.0.$versionId/patch.bsdiff")
+            json.put("Patch_MD5", "")
+            json.put("Is_Force_Update", false)
             
             val requestBody = json.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
             val request = Request.Builder().url(url).put(requestBody).build()
@@ -1501,10 +1539,13 @@ object AppUpdateManager {
 
             if (!exists) {
                 val json = JSONObject().apply {
-                    put("versionId", currentVersion)
-                    put("apkFileId", JSONObject.NULL)
-                    put("githubOwner", "cabharathikrishan")
-                    put("githubRepo", "lifeos")
+                    put("Version_no", currentVersion)
+                    put("Full_Apk_Url", JSONObject.NULL)
+                    put("Patch_File_Url", "https://github.com/cabharathikrishna-a11y/fwdcfAS/releases/download/v1.0.$currentVersion/patch.bsdiff")
+                    put("Patch_MD5", "")
+                    put("Is_Force_Update", false)
+                    put("githubOwner", "cabharathikrishna-a11y")
+                    put("githubRepo", "fwdcfAS")
                 }
                 val requestBody = json.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
                 val putRequest = Request.Builder().url(url).put(requestBody).build()

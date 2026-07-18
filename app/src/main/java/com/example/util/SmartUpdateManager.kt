@@ -190,9 +190,13 @@ object SmartUpdateManager {
                 val focusStatus = com.example.api.DynamicCommandManager.currentStatusFlow.value
                 Log.d(TAG, "Safety Lock: Outbox remaining count: ${outboxItems.size}, Active focus status: $focusStatus")
 
-                if (outboxItems.isNotEmpty() || focusStatus != "Relaxing") {
-                    Log.w(TAG, "Safety Lock preconditions NOT met! Focus status must be 'Relaxing' (Current: $focusStatus) and local outbox must be empty (Current size: ${outboxItems.size}). Aborting download.")
-                    _updateStatus.value = SmartUpdateStatus.Error("Preconditions failed: Ensure focus timer status is 'Relaxing' and all pending syncs are complete.")
+                val isRelaxing = focusStatus.equals("Relaxing", ignoreCase = true) || 
+                                 focusStatus.equals("IDLE", ignoreCase = true) || 
+                                 focusStatus.isEmpty()
+
+                if (outboxItems.isNotEmpty() || !isRelaxing) {
+                    Log.w(TAG, "Safety Lock preconditions NOT met! Focus status must be 'Relaxing' or 'IDLE' (Current: $focusStatus) and local outbox must be empty (Current size: ${outboxItems.size}). Aborting download.")
+                    _updateStatus.value = SmartUpdateStatus.Error("Preconditions failed: Ensure focus timer status is 'Relaxing' or 'IDLE' and all pending syncs are complete.")
                     return@launch
                 }
 

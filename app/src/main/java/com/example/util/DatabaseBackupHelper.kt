@@ -43,10 +43,10 @@ object DatabaseBackupHelper {
         )
     }
 
-    suspend fun exportData(context: Context, database: AppDatabase, uri: Uri): Boolean {
+    suspend fun exportData(context: Context, database: AppDatabase, uri: Uri, isAutoBackup: Boolean = false): Boolean {
         return try {
             context.contentResolver.openOutputStream(uri)?.use { fos ->
-                exportDataToStream(context, database, fos)
+                exportDataToStream(context, database, fos, isAutoBackup)
             } ?: false
         } catch (e: Exception) {
             Log.e(TAG, "Failed to export data to Uri", e)
@@ -54,7 +54,7 @@ object DatabaseBackupHelper {
         }
     }
 
-    suspend fun exportDataToStream(context: Context, database: AppDatabase, outputStream: java.io.OutputStream): Boolean {
+    suspend fun exportDataToStream(context: Context, database: AppDatabase, outputStream: java.io.OutputStream, isAutoBackup: Boolean = false): Boolean {
         return try {
             val options = getBackupOptions(context)
             val root = JSONObject()
@@ -366,30 +366,32 @@ object DatabaseBackupHelper {
             root.put("focus_records", focusArray)
 
             val driveLinksJson = JSONObject()
-            try {
-                val accessToken = GoogleDriveSyncManager.getAccessToken(context)
-                if (accessToken != null) {
-                    val filesDir = com.example.util.StorageHelper.getAppFilesDir(context)
-                    val filesList = filesDir.listFiles() ?: emptyArray()
-                    filesList.forEach { file ->
-                        if (file.isFile && file.name != "backup_summary.txt" && file.name != "backup_data.json" && !file.name.endsWith(".zip")) {
-                            val nameLower = file.name.lowercase()
-                            val isGooglePhotosSyncable = nameLower.endsWith(".jpg") || nameLower.endsWith(".jpeg") || 
-                                                       nameLower.endsWith(".png") || nameLower.endsWith(".webp") || 
-                                                       nameLower.endsWith(".mp4") || nameLower.endsWith(".3gp") || 
-                                                       nameLower.endsWith(".mkv") || nameLower.endsWith(".webm") || 
-                                                       nameLower.endsWith(".avi")
-                            if (!isGooglePhotosSyncable) {
-                                val sharingUrl = GoogleDriveSyncManager.uploadPublicMediaFileDirect(context, accessToken, file)
-                                if (sharingUrl != null) {
-                                    driveLinksJson.put(file.name, sharingUrl)
+            if (!isAutoBackup) {
+                try {
+                    val accessToken = GoogleDriveSyncManager.getAccessToken(context)
+                    if (accessToken != null) {
+                        val filesDir = com.example.util.StorageHelper.getAppFilesDir(context)
+                        val filesList = filesDir.listFiles() ?: emptyArray()
+                        filesList.forEach { file ->
+                            if (file.isFile && file.name != "backup_summary.txt" && file.name != "backup_data.json" && !file.name.endsWith(".zip")) {
+                                val nameLower = file.name.lowercase()
+                                val isGooglePhotosSyncable = nameLower.endsWith(".jpg") || nameLower.endsWith(".jpeg") || 
+                                                           nameLower.endsWith(".png") || nameLower.endsWith(".webp") || 
+                                                           nameLower.endsWith(".mp4") || nameLower.endsWith(".3gp") || 
+                                                           nameLower.endsWith(".mkv") || nameLower.endsWith(".webm") || 
+                                                           nameLower.endsWith(".avi")
+                                if (!isGooglePhotosSyncable) {
+                                    val sharingUrl = GoogleDriveSyncManager.uploadPublicMediaFileDirect(context, accessToken, file)
+                                    if (sharingUrl != null) {
+                                        driveLinksJson.put(file.name, sharingUrl)
+                                    }
                                 }
                             }
                         }
                     }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error generating drive links during export", e)
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error generating drive links during export", e)
             }
             root.put("drive_media_links", driveLinksJson)
 
@@ -1269,29 +1271,34 @@ object DatabaseBackupHelper {
 
     suspend fun autoBackup(context: Context, database: AppDatabase): Boolean {
         var success = false
-        val locations = getBackupLocations(context)
-        for (dir in locations) {
-            try {
-                if (!dir.exists()) {
-                    dir.mkdirs()
-                }
-                if (dir.exists() && dir.canWrite()) {
-                    val backupFile = java.io.File(dir, "lifeos_backup.zip")
-                    val tempFile = java.io.File(context.cacheDir, "lifeos_auto_backup_temp.zip")
-                    if (tempFile.exists()) tempFile.delete()
-                    
-                    val tempUri = Uri.fromFile(tempFile)
-                    val exported = exportData(context, database, tempUri)
-                    if (exported && tempFile.exists() && tempFile.length() > 0) {
-                        tempFile.copyTo(backupFile, overwrite = true)
-                        Log.d(TAG, "Auto-backup succeeded to: ${backupFile.absolutePath}")
-                        success = true
+        try {
+            val tempFile = java.io.File(context.cacheDir, "lifeos_auto_backup_temp.zip")
+            if (tempFile.exists()) tempFile.delete()
+            
+            val tempUri = Uri.fromFile(tempFile)
+            // Perform backup once locally, bypassing Google Drive uploads for auto-backup
+            val exported = exportData(context, database, tempUri, isAutoBackup = true)
+            if (exported && tempFile.exists() && tempFile.length() > 0) {
+                val locations = getBackupLocations(context)
+                for (dir in locations) {
+                    try {
+                        if (!dir.exists()) {
+                            dir.mkdirs()
+                        }
+                        if (dir.exists() && dir.canWrite()) {
+                            val backupFile = java.io.File(dir, "lifeos_backup.zip")
+                            tempFile.copyTo(backupFile, overwrite = true)
+                            Log.d(TAG, "Auto-backup succeeded to: ${backupFile.absolutePath}")
+                            success = true
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Auto-backup failed to copy to directory: ${dir.absolutePath}", e)
                     }
-                    if (tempFile.exists()) tempFile.delete()
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "Auto-backup failed to directory: ${dir.absolutePath}", e)
             }
+            if (tempFile.exists()) tempFile.delete()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to perform auto-backup", e)
         }
         return success
     }

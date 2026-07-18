@@ -236,4 +236,39 @@ object FocusLockerManager {
         roomRef = null
         _uiState.value = FocusLockerUiModel()
     }
+
+    fun checkForExistingRoomsAndReconnect(context: Context, myEmail: String) {
+        if (myEmail.isBlank()) return
+        Log.d(TAG, "Checking for existing rooms to reconnect for: $myEmail")
+        try {
+            val dbUrl = FirebaseConfig.getDatabaseUrl(context)
+            if (dbUrl.isEmpty()) return
+
+            val database = FirebaseDatabase.getInstance(dbUrl)
+            val sanitizedMyEmail = DevicePresenceManager.sanitizeEmail(myEmail)
+
+            val roomsRef = database.getReference("FOCUS_TIMMER").child("SHARED_ROOMS")
+            roomsRef.addListenerForSingleValueEvent(object : ValueEventListener {
+                override fun onDataChange(snapshot: DataSnapshot) {
+                    if (snapshot.exists()) {
+                        for (roomSnapshot in snapshot.children) {
+                            val participantsSnapshot = roomSnapshot.child("Participants")
+                            if (participantsSnapshot.exists() && participantsSnapshot.hasChild(sanitizedMyEmail)) {
+                                val roomId = roomSnapshot.key ?: continue
+                                Log.i(TAG, "Auto-reconnect: Found existing focus group participant entry in roomId: $roomId. Reconnecting...")
+                                joinRoom(context, myEmail, roomId)
+                                break // Only reconnect to the first found room
+                            }
+                        }
+                    }
+                }
+
+                override fun onCancelled(error: DatabaseError) {
+                    Log.e(TAG, "Auto-reconnect: check cancelled", error.toException())
+                }
+            })
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in checkForExistingRoomsAndReconnect", e)
+        }
+    }
 }

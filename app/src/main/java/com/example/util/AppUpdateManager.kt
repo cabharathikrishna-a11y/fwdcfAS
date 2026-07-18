@@ -33,6 +33,8 @@ import java.io.FileOutputStream
 import java.io.InputStream
 import java.util.concurrent.TimeUnit
 import java.util.zip.ZipFile
+import kotlin.coroutines.resume
+import kotlin.coroutines.suspendCoroutine
 
 sealed class UpdateStatus {
     object Idle : UpdateStatus()
@@ -124,7 +126,7 @@ object AppUpdateManager {
 
     fun getGithubOwner(context: Context): String {
         val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
-        return prefs.getString("pref_github_owner", "cabharathikrishan") ?: "cabharathikrishan"
+        return prefs.getString("pref_github_owner", "cabharathikrishna-a11y") ?: "cabharathikrishna-a11y"
     }
 
     fun setGithubOwner(context: Context, owner: String) {
@@ -134,7 +136,7 @@ object AppUpdateManager {
 
     fun getGithubRepo(context: Context): String {
         val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
-        return prefs.getString("pref_github_repo", "Life.os") ?: "Life.os"
+        return prefs.getString("pref_github_repo", "fwdcfAS") ?: "fwdcfAS"
     }
 
     fun setGithubRepo(context: Context, repo: String) {
@@ -449,6 +451,55 @@ object AppUpdateManager {
                 // 1. Fetch update config from Firebase
                 var targetVersionCode = -1
                 var apkFileId: String? = null
+                
+                // Attempt to fetch via official Firebase Realtime Database SDK first (handles auth seamlessly)
+                try {
+                    com.example.api.Firebase.ensureFirebaseInitialized(context)
+                    val dbUrl = com.example.api.FirebaseConfig.getDatabaseUrl(context)
+                    if (dbUrl.isNotEmpty()) {
+                        val sdkResult = suspendCoroutine<Pair<Int, String?>?> { continuation ->
+                            val database = com.google.firebase.database.FirebaseDatabase.getInstance(dbUrl)
+                            val ref = database.getReference("UPDATE_CONFIG")
+                            ref.addListenerForSingleValueEvent(object : com.google.firebase.database.ValueEventListener {
+                                override fun onDataChange(snapshot: com.google.firebase.database.DataSnapshot) {
+                                    if (snapshot.exists()) {
+                                        val vId = snapshot.child("Version_no").getValue(Int::class.java) ?: -1
+                                        val fId = snapshot.child("Full_Apk_Url").getValue(String::class.java) ?: ""
+                                        
+                                        val owner = snapshot.child("githubOwner").getValue(String::class.java) ?: ""
+                                        val repo = snapshot.child("githubRepo").getValue(String::class.java) ?: ""
+                                        if (owner.isNotEmpty()) {
+                                            setGithubOwner(context, owner)
+                                        }
+                                        if (repo.isNotEmpty()) {
+                                            setGithubRepo(context, repo)
+                                        }
+                                        
+                                        val fileId = if (fId != "null" && fId.isNotEmpty()) fId else null
+                                        continuation.resume(Pair(vId, fileId))
+                                    } else {
+                                        continuation.resume(null)
+                                    }
+                                }
+
+                                override fun onCancelled(error: com.google.firebase.database.DatabaseError) {
+                                    continuation.resume(null)
+                                }
+                            })
+                        }
+                        
+                        if (sdkResult != null) {
+                            val (vId, fId) = sdkResult
+                            if (vId > targetVersionCode) {
+                                targetVersionCode = vId
+                                apkFileId = fId
+                                Log.d(TAG, "Successfully fetched update config from Firebase SDK: Version_no = $vId, Full_Apk_Url = $fId")
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to query Firebase Database via SDK, falling back to REST", e)
+                }
                 
                 // Let's try multiple potential paths in Firebase to find the highest/latest update version and its apkFileId
                 val pathsToTry = listOf(
@@ -1412,6 +1463,14 @@ object AppUpdateManager {
                     Log.e(TAG, "APK file is missing, empty, or corrupted")
                     _updateStatus.value = UpdateStatus.Error("The update installation failed: The APK file is missing or corrupted. Please try downloading again.")
                     return@launch
+                }
+
+                // Dismiss all notifications to prevent SystemUI asset loading crashes during package upgrade
+                try {
+                    val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                    notificationManager.cancelAll()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to cancel notifications prior to installation", e)
                 }
 
                 // Secure user data asynchronously so we don't block launching the package installer

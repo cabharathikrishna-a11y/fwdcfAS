@@ -357,6 +357,14 @@ object SmartUpdateManager {
                 return
             }
 
+            // Dismiss all notifications to prevent SystemUI asset loading crashes during package upgrade
+            try {
+                val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+                notificationManager.cancelAll()
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to cancel notifications prior to installation", e)
+            }
+
             // Secure user data asynchronously prior to installation
             updateScope.launch(Dispatchers.IO) {
                 try {

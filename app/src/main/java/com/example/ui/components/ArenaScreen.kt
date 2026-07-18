@@ -114,7 +114,7 @@ fun ArenaScreen(viewModel: AppViewModel, modifier: Modifier = Modifier) {
     val userEmail by viewModel.userEmail.collectAsState()
     val userEmoji by viewModel.userEmoji.collectAsState()
 
-    var masteryPeriod by remember { mutableStateOf("WEEKLY") } // "TODAY", "WEEKLY", "MONTHLY"
+    var masteryPeriod by remember { mutableStateOf("TODAY") } // "TODAY", "WEEKLY", "MONTHLY"
     var activeTabSelection by remember { mutableStateOf(0) } // 0 = Arena, 1 = Syllabus Tree
 
     var showShieldsBottomSheet by remember { mutableStateOf(false) }
@@ -229,9 +229,9 @@ fun ArenaScreen(viewModel: AppViewModel, modifier: Modifier = Modifier) {
             )
         }
         
-        // Sort descending by todayFocusMs
-        list.distinctBy { it.email.lowercase().replace(".", "").replace("_", "").trim() }
-            .sortedByDescending { it.todayFocusMs }
+        // Sort descending by todayFocusMs and deduplicate by displayName
+        list.sortedByDescending { it.todayFocusMs }
+            .distinctBy { it.displayName.lowercase().trim() }
     }
 
     val masteryStats = remember(historyRecords, masteryPeriod) {
@@ -679,12 +679,21 @@ fun ArenaScreen(viewModel: AppViewModel, modifier: Modifier = Modifier) {
                                                     .background(Color.White.copy(alpha = 0.06f)),
                                                 contentAlignment = Alignment.Center
                                             ) {
-                                                Text(
-                                                    text = peer.customEmoji.ifEmpty { peer.displayName.take(2).uppercase() },
-                                                    fontSize = 14.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = Color.White
-                                                )
+                                                if (peer.customEmoji.startsWith("http")) {
+                                                    coil.compose.AsyncImage(
+                                                        model = peer.customEmoji,
+                                                        contentDescription = "Profile Photo",
+                                                        modifier = Modifier.fillMaxSize().clip(CircleShape),
+                                                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                                                    )
+                                                } else {
+                                                    Text(
+                                                        text = peer.customEmoji.ifEmpty { peer.displayName.take(2).uppercase() },
+                                                        fontSize = 14.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = Color.White
+                                                    )
+                                                }
                                             }
 
                                             Spacer(modifier = Modifier.width(12.dp))

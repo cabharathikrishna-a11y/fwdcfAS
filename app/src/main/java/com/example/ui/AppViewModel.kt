@@ -1374,6 +1374,7 @@ class AppViewModel(
             com.example.api.DailyAggregationWorker.schedule(getApplication(), emailToUse)
             com.example.api.PeerLiveSphereManager.startListeningToFriends(getApplication(), emailToUse)
             com.example.api.BellReceiverService.startListening(getApplication(), emailToUse)
+            com.example.api.FocusLockerManager.checkForExistingRoomsAndReconnect(getApplication(), emailToUse)
             syncSyllabusCompletionFromCloud()
         } else {
             _isLoggedIn.value = false
@@ -2456,6 +2457,7 @@ class AppViewModel(
             com.example.api.DailyAggregationWorker.schedule(getApplication(), email)
             com.example.api.PeerLiveSphereManager.startListeningToFriends(getApplication(), email)
             com.example.api.BellReceiverService.startListening(getApplication(), email)
+            com.example.api.FocusLockerManager.checkForExistingRoomsAndReconnect(getApplication(), email)
             syncSyllabusCompletionFromCloud()
         }
 

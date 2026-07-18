@@ -47,12 +47,13 @@ object WeeklyStatsUpdater {
             val trueTime = TimeEngine.getTrueTimeMs()
             val yearWeekStr = getYearAndWeekNumber(trueTime)
 
-            // Get current display name from app_prefs
+            // Get current display name and emoji from app_prefs
             val appPrefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
             val currentUsername = appPrefs.getString("current_username", "Guest") ?: "Guest"
             val cachedNickname = appPrefs.getString("user_nickname_$currentUsername", "") ?: ""
             val cachedName = appPrefs.getString("user_name_$currentUsername", "") ?: ""
             val displayName = if (cachedNickname.isNotEmpty()) cachedNickname else if (cachedName.isNotEmpty()) cachedName else currentUsername
+            val cachedEmoji = appPrefs.getString("user_emoji_$currentUsername", "") ?: ""
 
             val weeklyRef = database.getReference("FOCUS_TIMMER")
                 .child("USER")
@@ -86,7 +87,8 @@ object WeeklyStatsUpdater {
                 "Subject_Breakdown/$sanitizedTag" to ServerValue.increment(focusDurationMs),
                 "Last_Updated" to trueTime,
                 "DisplayName" to displayName,
-                "ActiveStreak" to activeStreak
+                "ActiveStreak" to activeStreak,
+                "CustomEmoji" to cachedEmoji
             )
 
             weeklyRef.updateChildren(updates)

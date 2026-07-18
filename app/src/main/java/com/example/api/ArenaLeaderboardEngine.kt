@@ -20,7 +20,8 @@ data class ArenaRankModel(
     val xpScore: Int,
     val topSubject: String,
     val isMe: Boolean = false,
-    val rank: Int = 0
+    val rank: Int = 0,
+    val customEmoji: String = ""
 )
 
 object ArenaLeaderboardEngine {
@@ -41,7 +42,8 @@ object ArenaLeaderboardEngine {
         val displayName: String,
         val totalFocusMs: Long,
         val activeStreak: Int,
-        val topSubject: String
+        val topSubject: String,
+        val customEmoji: String = ""
     )
 
     fun startListening(context: Context, myEmail: String) {
@@ -228,12 +230,20 @@ object ArenaLeaderboardEngine {
                                 } else {
                                     email.substringBefore("@")
                                 }
+                                val cachedEmoji = if (email == myEmail) {
+                                    val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+                                    val username = prefs.getString("current_username", "") ?: ""
+                                    prefs.getString("user_emoji_$username", "") ?: ""
+                                } else {
+                                    PeerLiveSphereManager.peerLiveStates.value[email]?.customEmoji ?: ""
+                                }
                                 rawWeeklyStatsMap[email] = PeerWeeklyRawStats(
                                     email = email,
                                     displayName = defaultName,
                                     totalFocusMs = 0L,
                                     activeStreak = 0,
-                                    topSubject = "None"
+                                    topSubject = "None",
+                                    customEmoji = cachedEmoji
                                 )
                                 computeAndEmitLeaderboard(myEmail)
                                 return
@@ -245,6 +255,16 @@ object ArenaLeaderboardEngine {
                             val rawName = snapshot.child("DisplayName").getValue(String::class.java)
                                 ?: snapshot.child("displayName").getValue(String::class.java)
                             val displayName = if (!rawName.isNullOrBlank()) rawName else email.substringBefore("@")
+
+                            val rawEmoji = snapshot.child("CustomEmoji").getValue(String::class.java)
+                                ?: snapshot.child("customEmoji").getValue(String::class.java)
+                                ?: (if (email == myEmail) {
+                                    val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+                                    val username = prefs.getString("current_username", "") ?: ""
+                                    prefs.getString("user_emoji_$username", "") ?: ""
+                                } else {
+                                    PeerLiveSphereManager.peerLiveStates.value[email]?.customEmoji ?: ""
+                                })
 
                             // Find top subject from Subject_Breakdown
                             var topSubjectName = "None"
@@ -266,7 +286,8 @@ object ArenaLeaderboardEngine {
                                 displayName = displayName,
                                 totalFocusMs = totalFocusMs,
                                 activeStreak = activeStreak,
-                                topSubject = topSubjectName
+                                topSubject = topSubjectName,
+                                customEmoji = rawEmoji
                             )
                             computeAndEmitLeaderboard(myEmail)
                         }
@@ -291,11 +312,13 @@ object ArenaLeaderboardEngine {
 
     private fun computeAndEmitLeaderboard(myEmail: String) {
         val rawList = rawWeeklyStatsMap.values
-            .distinctBy { it.email.lowercase().trim() }
             .filter {
                 it.displayName.lowercase() != "guest" &&
                 !it.email.lowercase().contains("guest")
-            }.toList()
+            }
+            .sortedByDescending { it.totalFocusMs }
+            .distinctBy { it.displayName.lowercase().trim() }
+            .toList()
         if (rawList.isEmpty()) {
             _leaderboardFlow.value = emptyList()
             return
@@ -315,7 +338,8 @@ object ArenaLeaderboardEngine {
                 activeStreak = raw.activeStreak,
                 xpScore = xpScore,
                 topSubject = raw.topSubject,
-                isMe = (raw.email == myEmail)
+                isMe = (raw.email == myEmail),
+                customEmoji = raw.customEmoji
             )
         }
 

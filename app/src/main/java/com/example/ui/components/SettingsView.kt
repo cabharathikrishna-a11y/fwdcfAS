@@ -9454,7 +9454,10 @@ fun SettingsUpdatesPage(
                             is com.example.util.SmartUpdateStatus.Downloading -> "Downloading: ${(smartState.progress * 100).toInt()}%"
                             is com.example.util.SmartUpdateStatus.Merging -> "Applying Gzip-BSPatch Delta Merge..."
                             is com.example.util.SmartUpdateStatus.ReadyToInstall -> "Patched Build Ready to Install!"
-                            is com.example.util.SmartUpdateStatus.Error -> "Failed: ${smartState.message}"
+                            is com.example.util.SmartUpdateStatus.Error -> {
+                                val cleanMsg = smartState.message.replace(" [ALLOW_FORCE]", "")
+                                "Failed: $cleanMsg"
+                            }
                         }
                         
                         Text(
@@ -9502,6 +9505,22 @@ fun SettingsUpdatesPage(
                                     shape = RoundedCornerShape(8.dp)
                                 ) {
                                     Text("Apply Update", color = Color.Black, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+
+                            if (smartState is com.example.util.SmartUpdateStatus.Error && smartState.message.contains("[ALLOW_FORCE]")) {
+                                val latestVer = com.example.util.SmartUpdateManager.latestAvailableVersion
+                                if (latestVer != null) {
+                                    Button(
+                                        onClick = {
+                                            com.example.util.SmartUpdateManager.triggerSmartUpdate(context, latestVer, force = true)
+                                        },
+                                        modifier = Modifier.weight(1.5f).height(40.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
+                                        shape = RoundedCornerShape(8.dp)
+                                    ) {
+                                        Text("Force Apply", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
                                 }
                             }
                             

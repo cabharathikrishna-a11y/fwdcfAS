@@ -279,7 +279,7 @@ jobs:
         # Update UPDATE_CONFIG.json
         if [ -n "$AUTH_HEADER" ]; then
           curl -X PUT -H "Content-Type: application/json" -H "$AUTH_HEADER" \
-            -d "{\"Version_no\": $VERSION_CODE, \"Full_Apk_Url\": \"$APK_URL\", \"Patch_File_Url\": \"https://github.com/${REPO_NAME}/releases/download/v1.0.$VERSION_CODE/patch.bsdiff\", \"Patch_MD5\": \"$APK_MD5\", \"Is_Force_Update\": false}" \
+            -d "{\"Version_no\": $VERSION_CODE, \"Full_Apk_Url\": \"$APK_URL\", \"Patch_File_Url\": \"https://github.com/${REPO_NAME}/releases/download/v1.0.$VERSION_CODE/patch.bsdiff\", \"Patch_MD5\": \"$APK_MD5\", \"Is_Force_Update\": false, \"githubOwner\": \"$OWNER\", \"githubRepo\": \"$REPO\"}" \
             "https://lifeosca.asia-southeast1.firebasedatabase.app/UPDATE_CONFIG.json"
             
           # Update versionId.json
@@ -288,7 +288,7 @@ jobs:
             "https://lifeosca.asia-southeast1.firebasedatabase.app/versionId.json"
         else
           curl -X PUT -H "Content-Type: application/json" \
-            -d "{\"Version_no\": $VERSION_CODE, \"Full_Apk_Url\": \"$APK_URL\", \"Patch_File_Url\": \"https://github.com/${REPO_NAME}/releases/download/v1.0.$VERSION_CODE/patch.bsdiff\", \"Patch_MD5\": \"$APK_MD5\", \"Is_Force_Update\": false}" \
+            -d "{\"Version_no\": $VERSION_CODE, \"Full_Apk_Url\": \"$APK_URL\", \"Patch_File_Url\": \"https://github.com/${REPO_NAME}/releases/download/v1.0.$VERSION_CODE/patch.bsdiff\", \"Patch_MD5\": \"$APK_MD5\", \"Is_Force_Update\": false, \"githubOwner\": \"$OWNER\", \"githubRepo\": \"$REPO\"}" \
             "https://lifeosca.asia-southeast1.firebasedatabase.app/UPDATE_CONFIG.json"
             
           # Update versionId.json

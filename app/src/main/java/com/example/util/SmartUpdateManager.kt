@@ -58,6 +58,7 @@ object SmartUpdateManager {
     val isForceUpdateRequired: StateFlow<Boolean> = _isForceUpdateRequired.asStateFlow()
 
     var activeForceUpdateConfig: SmartUpdateStatus.NewVersionAvailable? = null
+    var latestAvailableVersion: SmartUpdateStatus.NewVersionAvailable? = null
 
     private val updateScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val okHttpClient by lazy {
@@ -140,6 +141,7 @@ object SmartUpdateManager {
                                 patchMd5 = patchMd5,
                                 isForceUpdate = isForceUpdate
                             )
+                            latestAvailableVersion = updateConfig
                             if (isForceUpdate) {
                                 _isForceUpdateRequired.value = true
                                 activeForceUpdateConfig = updateConfig
@@ -170,7 +172,7 @@ object SmartUpdateManager {
     /**
      * Start the download and upgrade flow with priority to Delta Patches.
      */
-    fun triggerSmartUpdate(context: Context, newVersion: SmartUpdateStatus.NewVersionAvailable) {
+    fun triggerSmartUpdate(context: Context, newVersion: SmartUpdateStatus.NewVersionAvailable, force: Boolean = false) {
         updateScope.launch {
             try {
                 _updateStatus.value = SmartUpdateStatus.SecuringData
@@ -179,7 +181,7 @@ object SmartUpdateManager {
                 // Do not initiate update download until Room Outbox is fully empty and focus timer status is "Relaxing".
                 val db = AppDatabase.getInstance(context)
                 var outboxItems = db.outboxQueueDao().getPendingQueueDirect()
-                if (outboxItems.isNotEmpty()) {
+                if (!force && outboxItems.isNotEmpty()) {
                     Log.i(TAG, "Safety Lock: Outbox has ${outboxItems.size} items. Triggering active sync drain...")
                     withContext(Dispatchers.IO) {
                         OutboxDrainer.processQueue(context, outboxItems)
@@ -194,9 +196,9 @@ object SmartUpdateManager {
                                  focusStatus.equals("IDLE", ignoreCase = true) || 
                                  focusStatus.isEmpty()
 
-                if (outboxItems.isNotEmpty() || !isRelaxing) {
+                if (!force && (outboxItems.isNotEmpty() || !isRelaxing)) {
                     Log.w(TAG, "Safety Lock preconditions NOT met! Focus status must be 'Relaxing' or 'IDLE' (Current: $focusStatus) and local outbox must be empty (Current size: ${outboxItems.size}). Aborting download.")
-                    _updateStatus.value = SmartUpdateStatus.Error("Preconditions failed: Ensure focus timer status is 'Relaxing' or 'IDLE' and all pending syncs are complete.")
+                    _updateStatus.value = SmartUpdateStatus.Error("Preconditions failed: Ensure focus timer status is 'Relaxing' or 'IDLE' and all pending syncs are complete. [ALLOW_FORCE]")
                     return@launch
                 }
 
